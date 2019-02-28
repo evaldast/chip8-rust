@@ -215,7 +215,8 @@ impl Chip8 {
                     },
                     2 => self.set_i_to_location_of_sprite_vx(op_code),
                     3 => self.store_bcd_of_vx_in_i(op_code),
-                    5 => self.store_v0_to_vx_in_memory(op_code),                                            
+                    5 => self.store_through_v0_to_vx_in_memory(op_code),
+                    6 => self.store_from_memory_through_v0_to_vx(op_code),                                            
                     _ => return
                 }
             }
@@ -428,9 +429,15 @@ impl Chip8 {
         self.memory.ram[(self.registers.i + 2) as usize] = vx_value % 100 % 10;
     }
 
-    fn store_v0_to_vx_in_memory(&mut self, op_code: u16) {
+    fn store_through_v0_to_vx_in_memory(&mut self, op_code: u16) {
         for index in 0..=op_code.extract_nibble_value(2) as u16 {
             self.memory.ram[(self.registers.i + index) as usize] = self.registers.v[index as usize];
+        }
+    }
+
+    fn store_from_memory_through_v0_to_vx(&mut self, op_code: u16) {
+        for index in 0..=op_code.extract_nibble_value(2) as u16 {
+            self.registers.v[index as usize] = self.memory.ram[(self.registers.i + index) as usize];
         }
     }
 
@@ -1049,6 +1056,28 @@ mod tests {
         assert_eq!(chip8.memory.ram[chip8.registers.i as usize], v_zero_value);
         assert_eq!(chip8.memory.ram[(chip8.registers.i + 1) as usize], v_one_value);
         assert_eq!(chip8.memory.ram[(chip8.registers.i + 2) as usize], v_two_value);
+    }
+
+    //Read registers V0 through Vx from memory starting at location I.
+    //The interpreter reads values from memory starting at location I into registers V0 through Vx.
+    #[test]
+    fn can_process_op_f_x_65() {
+        let mut chip8 = Chip8::initialize();
+        let ram_loc_zero_value = 0xFF;
+        let ram_loc_one_value = 0x01;
+        let ram_loc_two_value = 0xA;
+        let i_value = 0x0;    
+
+        chip8.memory.ram[i_value] = ram_loc_zero_value;
+        chip8.memory.ram[i_value + 1] = ram_loc_one_value;
+        chip8.memory.ram[i_value + 2] = ram_loc_two_value;
+        chip8.registers.i = i_value as u16;
+
+        chip8.execute_op_code(0xF265);
+
+        assert_eq!(chip8.registers.v[0], ram_loc_zero_value);
+        assert_eq!(chip8.registers.v[1], ram_loc_one_value);
+        assert_eq!(chip8.registers.v[2], ram_loc_two_value);
     }
 }
 
