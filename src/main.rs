@@ -212,7 +212,9 @@ impl Chip8 {
                             0xE => self.set_i_to_sum_of_i_and_vx(op_code),
                             _ => return
                         }
-                    }
+                    },
+                    2 => self.set_i_to_location_of_sprite_vx(op_code),
+                    3 => self.store_bcd_of_vx_in_i(op_code),                                            
                     _ => return
                 }
             }
@@ -413,9 +415,21 @@ impl Chip8 {
         self.registers.i += self.registers.v[op_code.extract_nibble_value(2) as usize] as u16;
     }
 
+    fn set_i_to_location_of_sprite_vx(&mut self, op_code: u16) {
+        self.registers.i = 0x05 * self.registers.v[op_code.extract_nibble_value(2) as usize] as u16;
+    }
+
+    fn store_bcd_of_vx_in_i(&mut self, op_code: u16) {
+        let vx_value = self.registers.v[op_code.extract_nibble_value(2) as usize];
+
+        self.memory.ram[self.registers.i as usize] = vx_value / 100;
+        self.memory.ram[(self.registers.i + 1) as usize] = vx_value / 10 % 10;
+        self.memory.ram[(self.registers.i + 2) as usize] = vx_value % 100 % 10;
+    }
+
     fn clear_screen(&mut self) {
         self.graphics.gfx = [false; 2048];
-    }
+    }    
 }
 
 fn main() {
@@ -966,7 +980,7 @@ mod tests {
         assert_eq!(chip8.timers.sound_timer, current_v_value);
     }
 
-    // Set I = I + Vx.
+    //Set I = I + Vx.
     //The values of I and Vx are added, and the results are stored in I.
     #[test]
     fn can_process_op_f_x_1e() {
@@ -981,6 +995,31 @@ mod tests {
         chip8.execute_op_code(0xF31E);
 
         assert_eq!(i_value + (v_value as u16), chip8.registers.i);
+    }
+
+    //Set I = location of sprite for digit Vx.
+    //The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx
+    // #[test]
+    // fn can_process_op_f_x_29() {
+    //     let mut chip8 = Chip8::initialize();    
+    // }
+
+    //Store BCD representation of Vx in memory locations I, I+1, and I+2.
+    //The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I,
+    //the tens digit at location I+1, and the ones digit at location I+2.
+    #[test]
+    fn can_process_op_f_x_33() {
+        let mut chip8 = Chip8::initialize();
+        let v_index = 6;
+        let v_value = 0xFC;
+
+        chip8.registers.v[v_index] = v_value;
+
+        chip8.execute_op_code(0xF633);
+
+        assert_eq!(chip8.memory.ram[chip8.registers.i as usize], 2);
+        assert_eq!(chip8.memory.ram[(chip8.registers.i + 1) as usize], 5);
+        assert_eq!(chip8.memory.ram[(chip8.registers.i + 2) as usize], 2);
     }
 }
 
