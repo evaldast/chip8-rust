@@ -406,7 +406,7 @@ impl Chip8 {
     }
 
     fn set_sound_timer_to_vx(&mut self, op_code: u16) {
-        self.timers.delay_timer = self.registers.v[op_code.extract_nibble_value(2) as usize];
+        self.timers.sound_timer = self.registers.v[op_code.extract_nibble_value(2) as usize];
     }
 
     fn clear_screen(&mut self) {
@@ -930,6 +930,20 @@ mod tests {
         chip8.execute_op_code(0xF50A);
 
         assert_eq!(chip8.registers.v[5], 1);
+    }
+
+    //Set delay timer = Vx.
+    //DT is set equal to the value of Vx.
+    #[test]
+    fn can_process_op_f_x_15() {
+        let mut chip8 = Chip8::initialize();
+        
+        chip8.registers.v[5] = 0xAF; 
+        chip8.timers.delay_timer = 0xFA;
+
+        chip8.execute_op_code(0xF515);
+
+        assert_eq!(chip8.registers.v[5], chip8.timers.delay_timer);
     }
 
     //Set sound timer = Vx.
