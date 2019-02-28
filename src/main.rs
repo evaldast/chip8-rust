@@ -201,7 +201,7 @@ impl Chip8 {
                     0 => {
                         match op_code.extract_nibble_value(4) {
                             7 => self.set_vx_to_delay_timer(op_code),
-                            0xA => self.await_key_and_store_to_value_vx(op_code),
+                            0xA => self.await_key_and_store_to_value_vx(op_code),                            
                             _ => return
                         }
                     },
@@ -209,7 +209,7 @@ impl Chip8 {
                         match op_code.extract_nibble_value(4) {
                             5 => self.set_delay_timer_to_vx(op_code),
                             8 => self.set_sound_timer_to_vx(op_code),
-                            0xE => return,
+                            0xE => self.set_i_to_sum_of_i_and_vx(op_code),
                             _ => return
                         }
                     }
@@ -407,6 +407,10 @@ impl Chip8 {
 
     fn set_sound_timer_to_vx(&mut self, op_code: u16) {
         self.timers.sound_timer = self.registers.v[op_code.extract_nibble_value(2) as usize];
+    }
+
+    fn set_i_to_sum_of_i_and_vx(& mut self, op_code: u16) {
+        self.registers.i += self.registers.v[op_code.extract_nibble_value(2) as usize] as u16;
     }
 
     fn clear_screen(&mut self) {
@@ -937,13 +941,14 @@ mod tests {
     #[test]
     fn can_process_op_f_x_15() {
         let mut chip8 = Chip8::initialize();
-        
-        chip8.registers.v[5] = 0xAF; 
+        let current_v_index = 5;
+
+        chip8.registers.v[current_v_index] = 0xAF; 
         chip8.timers.delay_timer = 0xFA;
 
         chip8.execute_op_code(0xF515);
 
-        assert_eq!(chip8.registers.v[5], chip8.timers.delay_timer);
+        assert_eq!(chip8.registers.v[current_v_index], chip8.timers.delay_timer);
     }
 
     //Set sound timer = Vx.
@@ -959,6 +964,23 @@ mod tests {
         chip8.execute_op_code(0xF318);
 
         assert_eq!(chip8.timers.sound_timer, current_v_value);
+    }
+
+    // Set I = I + Vx.
+    //The values of I and Vx are added, and the results are stored in I.
+    #[test]
+    fn can_process_op_f_x_1e() {
+        let mut chip8 = Chip8::initialize();
+        let i_value = 0xF; 
+        let v_index = 3;
+        let v_value = 0xE;        
+
+        chip8.registers.i = i_value;
+        chip8.registers.v[v_index] = v_value;
+
+        chip8.execute_op_code(0xF31E);
+
+        assert_eq!(i_value + (v_value as u16), chip8.registers.i);
     }
 }
 
