@@ -214,7 +214,8 @@ impl Chip8 {
                         }
                     },
                     2 => self.set_i_to_location_of_sprite_vx(op_code),
-                    3 => self.store_bcd_of_vx_in_i(op_code),                                            
+                    3 => self.store_bcd_of_vx_in_i(op_code),
+                    5 => self.store_v0_to_vx_in_memory(op_code),                                            
                     _ => return
                 }
             }
@@ -425,6 +426,12 @@ impl Chip8 {
         self.memory.ram[self.registers.i as usize] = vx_value / 100;
         self.memory.ram[(self.registers.i + 1) as usize] = vx_value / 10 % 10;
         self.memory.ram[(self.registers.i + 2) as usize] = vx_value % 100 % 10;
+    }
+
+    fn store_v0_to_vx_in_memory(&mut self, op_code: u16) {
+        for index in 0..=op_code.extract_nibble_value(2) as u16 {
+            self.memory.ram[(self.registers.i + index) as usize] = self.registers.v[index as usize];
+        }
     }
 
     fn clear_screen(&mut self) {
@@ -1020,6 +1027,28 @@ mod tests {
         assert_eq!(chip8.memory.ram[chip8.registers.i as usize], 2);
         assert_eq!(chip8.memory.ram[(chip8.registers.i + 1) as usize], 5);
         assert_eq!(chip8.memory.ram[(chip8.registers.i + 2) as usize], 2);
+    }
+
+    //Store registers V0 through Vx in memory starting at location I.
+    //The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
+    #[test]
+    fn can_process_op_f_x_55() {
+        let mut chip8 = Chip8::initialize();
+        let v_zero_value = 0xFF;
+        let v_one_value = 0x01;
+        let v_two_value = 0xA;
+        let i_value = 0x5;
+
+        chip8.registers.v[0] = v_zero_value;
+        chip8.registers.v[1] = v_one_value;
+        chip8.registers.v[2] = v_two_value;
+        chip8.registers.i = i_value;
+
+        chip8.execute_op_code(0xF255);
+
+        assert_eq!(chip8.memory.ram[chip8.registers.i as usize], v_zero_value);
+        assert_eq!(chip8.memory.ram[(chip8.registers.i + 1) as usize], v_one_value);
+        assert_eq!(chip8.memory.ram[(chip8.registers.i + 2) as usize], v_two_value);
     }
 }
 
