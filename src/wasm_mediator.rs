@@ -1,13 +1,11 @@
 extern crate wasm_bindgen;
 
+use std::mem;
+
 use wasm_bindgen::prelude::*;
-use crate::cpu::Chip8;
+use crate::cpu;
 
 #[wasm_bindgen]
-pub fn next_frame() -> Vec<i32> {
-    let chip8 = Chip8::initialize();
-
-    let arr = [false; 2048];
-
-    arr.to_vec().iter().map(|i| match i { true => 1, false => 0 }).collect()
+pub fn next_frame() -> *const bool {
+    cpu::get_pointer_to_gfx()
 }

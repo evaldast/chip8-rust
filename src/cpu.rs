@@ -1,6 +1,18 @@
 use rand::prelude::{Rng, SeedableRng};
 use std::fs::File;
 use std::io::prelude::*;
+use std::sync::Mutex;
+
+lazy_static! {
+    pub static ref CHIP8: Mutex<Chip8> = Mutex::new(Chip8 {
+        registers: Registers { program_counter: 0x200, i: 0, v: [0; 16] },
+        memory: Memory { ram: [0; 4096] },
+        graphics: Graphics { gfx: [false; 2048], redraw: false },
+        timers: Timers { sound_timer: 0, delay_timer: 0 },
+        stack: Stack { stack: [0; 16], stack_pointer: 0 },
+        keypad: Keypad { keys: [false; 16] }
+    });
+}
 
 pub struct Memory {
     pub ram: [u8; 4096]
@@ -13,8 +25,8 @@ pub struct Registers {
 }
 
 pub struct Graphics {
-    gfx: [bool; 64 * 32],
-    redraw: bool,
+    pub gfx: [bool; 64 * 32],
+    pub redraw: bool,
 }
 
 pub struct Timers {
@@ -38,7 +50,10 @@ pub struct Chip8 {
     pub timers: Timers,
     pub stack: Stack,
     pub keypad: Keypad,
-    pub rng: rand::prelude::ThreadRng,
+}
+
+pub fn get_pointer_to_gfx() -> *const bool {    
+    CHIP8.lock().unwrap().graphics.gfx.as_ptr()
 }
 
 impl Memory {
@@ -89,10 +104,15 @@ impl Graphics {
     }
 
     fn change_pixel_value(&mut self, coord_x: u8, axis_x: u8, coord_y: u8, axis_y: u8) {
-        let mut pixel = self.gfx[(coord_x + axis_x + ((coord_y + axis_y) * 64)) as usize];
+        let pixel = self.gfx[(coord_x + axis_x + ((coord_y + axis_y) * 64)) as usize];
 
-        pixel = !pixel;
+        self.gfx[(coord_x + axis_x + ((coord_y + axis_y) * 64)) as usize] = !pixel;
     }
+
+    
+    fn clear_screen(&mut self) {
+        self.gfx = [false; 2048];
+    } 
 }
 
 trait OpCode {
@@ -127,7 +147,7 @@ impl OpCode for u16 {
     }
 }
 
-impl Chip8 {    
+impl Chip8 {
     pub fn initialize() -> Chip8 {
         let mut chip8 = Chip8 {
             registers: Registers { program_counter: 0x200, i: 0, v: [0; 16] },
@@ -135,16 +155,15 @@ impl Chip8 {
             graphics: Graphics { gfx: [false; 2048], redraw: false },
             timers: Timers { sound_timer: 0, delay_timer: 0 },
             stack: Stack { stack: [0; 16], stack_pointer: 0 },
-            keypad: Keypad { keys: [false; 16] },
-            rng: rand::thread_rng(),
+            keypad: Keypad { keys: [false; 16] }
         };
 
         chip8.memory.load_font_set();
 
         chip8
-    }
+    }    
 
-    pub fn emulate_cycle(&mut self) {
+    fn emulate_cycle(&mut self) {
         let op_code: u16 = self.fetch_op_code();
 
         // Execute Opcode
@@ -160,7 +179,7 @@ impl Chip8 {
             | (self.memory.ram[(self.registers.program_counter + 1) as usize] as u16) 
     }
 
-    pub fn execute_op_code(&mut self, op_code: u16) {
+    fn execute_op_code(&mut self, op_code: u16) {
         match op_code {
             0x00EE => self.return_from_subroutine(),
             0x1000...0x1FFF => self.jump_to_location(op_code),
@@ -345,7 +364,7 @@ impl Chip8 {
     }
 
     fn set_vx_to_random_and_kk(&mut self, op_code: u16) {
-        let random_byte: u8 = self.rng.gen();
+        let random_byte: u8 = rand::thread_rng().gen();
 
         self.registers.v[op_code.extract_nibble_value(2) as usize] = op_code.get_argument_sum(1..) as u8 & random_byte
     }
@@ -439,11 +458,7 @@ impl Chip8 {
         for index in 0..=op_code.extract_nibble_value(2) as u16 {
             self.registers.v[index as usize] = self.memory.ram[(self.registers.i + index) as usize];
         }
-    }
-
-    fn clear_screen(&mut self) {
-        self.graphics.gfx = [false; 2048];
-    }    
+    } 
 }
 
 fn start_chip8() -> Result<(), Box<std::error::Error>> {
